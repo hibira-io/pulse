@@ -1,0 +1,47 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - laravel: "10.*"
+            testbench: "8.*"
+            php: "8.1"
+          - laravel: "11.*"
+            testbench: "9.*"
+            php: "8.2"
+          - laravel: "12.*"
+            testbench: "10.*"
+            php: "8.3"
+          - laravel: "13.*"
+            testbench: "11.*"
+            php: "8.4"
+    name: Laravel ${{ matrix.laravel }} / PHP ${{ matrix.php }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Install
+        env:
+          COMPOSER_NO_SECURITY_BLOCKING: "1"
+        run: |
+          # Older Laravel releases have security advisories, and Composer
+          # refuses those by default. They are tested on purpose; apps choose
+          # their own versions.
+          php -r '$c = json_decode(file_get_contents("composer.json"), true); $c["config"]["audit"]["block-insecure"] = false; $c["config"]["policy"]["advisories"]["block"] = false; file_put_contents("composer.json", json_encode($c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));'
+          composer require "illuminate/support:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require --dev "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies
+      - run: vendor/bin/phpunit
